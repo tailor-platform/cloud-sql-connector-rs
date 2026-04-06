@@ -6,7 +6,7 @@
 //! ## Usage
 //!
 //! ```rust,no_run
-//! use cloud_sql_connector::{CloudSqlConnector, CloudSqlConfig, IpType};
+//! use cloudsqlconn::{CloudSqlConnector, CloudSqlConfig, IpType};
 //! use std::sync::Arc;
 //! use std::time::Duration;
 //!
