@@ -1,9 +1,10 @@
 [package]
-name = "cloud-sql-connector"
+name = "cloudsqlconn"
 version = "0.1.0"
 edition = "2024"
 description = "Cloud SQL connector for Rust"
 license = "MIT"
+readme = "README.md"
 repository = "https://github.com/tailor-platform/cloud-sql-connector-rs"
 
 [dependencies]
