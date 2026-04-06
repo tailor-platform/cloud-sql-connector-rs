@@ -1,4 +1,4 @@
-# cloud-sql-connector
+# cloudsqlconn
 
 A Rust connector for [Google Cloud SQL](https://cloud.google.com/sql). Provides secure, authenticated connections to Cloud SQL instances using IAM authentication and automatic certificate management.
 
@@ -12,7 +12,7 @@ A Rust connector for [Google Cloud SQL](https://cloud.google.com/sql). Provides 
 ## Usage
 
 ```rust
-use cloud_sql_connector::{CloudSqlConfig, CloudSqlConnector};
+use cloudsqlconn::{CloudSqlConfig, CloudSqlConnector};
 
 let config = CloudSqlConfig::new("my-project:us-central1:my-instance")
     .with_iam_auth(true);
