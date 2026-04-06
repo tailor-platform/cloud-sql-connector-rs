@@ -32,7 +32,7 @@
 //   TEST_CLOUD_SQL_IP_TYPE=public \
 //   cargo test --package cloud-sql-connector --test integration_test
 
-use cloud_sql_connector::{CloudSqlConfig, CloudSqlConnector, IpType};
+use cloudsqlconn::{CloudSqlConfig, CloudSqlConnector, IpType};
 use std::env;
 use std::sync::{Arc, Once};
 
