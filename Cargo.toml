@@ -18,7 +18,7 @@ deadpool = "0.13.0"
 rsa = "0.9.9"
 rand = "0.10.0"
 rand_core = "0.6"
-pkcs8 = { version = "0.10.2", features = ["pem"] }
+pkcs8 = { version = "0.11.0", features = ["pem"] }
 tokio = { version = "1.49.0", features = ["rt", "time", "sync", "macros"] }
 arc-swap = "1.7.1"
 thiserror = "2.0.17"
