@@ -15,10 +15,9 @@ rustls-pemfile = "2.2.0"
 tokio-rustls = "0.26.4"
 tokio-postgres = "0.7.15"
 deadpool = "0.13.0"
-rsa = "0.9.9"
+rsa = { version = "0.9.9", features = ["pem"] }
 rand = "0.10.0"
 rand_core = "0.6"
-pkcs8 = { version = "0.10.2", features = ["pem"] }
 tokio = { version = "1.49.0", features = ["rt", "time", "sync", "macros"] }
 arc-swap = "1.7.1"
 thiserror = "2.0.17"
