@@ -4,7 +4,7 @@ use crate::error::Error;
 use crate::instance::InstanceConnectionName;
 use arc_swap::ArcSwap;
 use chrono::{DateTime, Utc};
-use pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding};
+use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding};
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use std::net::IpAddr;
