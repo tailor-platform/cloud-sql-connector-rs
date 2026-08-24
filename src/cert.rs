@@ -107,7 +107,7 @@ impl CertificateManager {
 }
 
 fn generate_key_pair() -> Result<(RsaPrivateKey, String), Error> {
-    let mut rng = rand_core::OsRng;
+    let mut rng = rsa::rand_core::OsRng;
     let private_key = RsaPrivateKey::new(&mut rng, RSA_KEY_SIZE)
         .map_err(|e| Error::CertificateError(format!("failed to generate RSA key: {e}")))?;
 
