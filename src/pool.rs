@@ -1,6 +1,7 @@
 use crate::CloudSqlConnector;
 use crate::error::Error;
-use deadpool::managed::{Manager, Metrics, RecycleError, RecycleResult};
+use deadpool::Runtime;
+use deadpool::managed::{Manager, Metrics, Pool, RecycleError, RecycleResult, Timeouts};
 use rustls::pki_types::ServerName;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -13,7 +14,28 @@ use tokio_rustls::TlsConnector;
 /// mTLS connections on this port.
 const SERVER_PROXY_PORT: u16 = 3307;
 
-pub type CloudSqlPool = deadpool::managed::Pool<CloudSqlPoolManager>;
+pub type CloudSqlPool = Pool<CloudSqlPoolManager>;
+
+/// Builds a pool on the Tokio runtime so that deadpool can enforce the
+/// configured timeouts. Without a runtime, `build()` fails when any timeout
+/// is set.
+pub(crate) fn build_pool<M: Manager>(
+    manager: M,
+    max_size: usize,
+    timeouts: Timeouts,
+) -> Result<Pool<M>, Error> {
+    if max_size == 0 {
+        return Err(Error::PoolConfigurationFailed(
+            "max_size must be greater than 0".to_string(),
+        ));
+    }
+
+    Ok(Pool::builder(manager)
+        .max_size(max_size)
+        .runtime(Runtime::Tokio1)
+        .timeouts(timeouts)
+        .build()?)
+}
 
 pub struct PooledConnection {
     pub client: Client,
@@ -171,5 +193,64 @@ impl Manager for CloudSqlPoolManager {
             .map_err(|e| RecycleError::message(format!("connection health check failed: {e}")))?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use deadpool::managed::{PoolError, TimeoutType};
+    use std::convert::Infallible;
+
+    #[derive(Debug)]
+    struct StubManager;
+
+    impl Manager for StubManager {
+        type Type = ();
+        type Error = Infallible;
+
+        async fn create(&self) -> Result<(), Infallible> {
+            Ok(())
+        }
+
+        async fn recycle(&self, _: &mut (), _: &Metrics) -> RecycleResult<Infallible> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn build_pool_rejects_zero_max_size() {
+        let err = build_pool(StubManager, 0, Timeouts::default()).unwrap_err();
+        assert!(matches!(err, Error::PoolConfigurationFailed(_)));
+    }
+
+    #[tokio::test]
+    async fn wait_timeout_surfaces_as_pool_error() {
+        let timeouts = Timeouts {
+            wait: Some(Duration::from_millis(200)),
+            ..Timeouts::default()
+        };
+        let pool = build_pool(StubManager, 1, timeouts).unwrap();
+        let _held = pool.get().await.unwrap();
+
+        let started = Instant::now();
+        let err = pool.get().await.unwrap_err();
+        assert!(matches!(err, PoolError::Timeout(TimeoutType::Wait)));
+        assert!(started.elapsed() >= Duration::from_millis(200));
+        assert!(started.elapsed() < Duration::from_secs(2));
+    }
+
+    #[tokio::test]
+    async fn default_timeouts_wait_indefinitely() {
+        let pool = build_pool(StubManager, 1, Timeouts::default()).unwrap();
+        let _held = pool.get().await.unwrap();
+
+        let waiting = tokio::spawn({
+            let pool = pool.clone();
+            async move { pool.get().await.map(|_| ()) }
+        });
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        assert!(!waiting.is_finished());
+        waiting.abort();
     }
 }

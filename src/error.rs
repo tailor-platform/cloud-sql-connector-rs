@@ -19,6 +19,15 @@ pub enum Error {
 
     #[error("connection failed: {0}")]
     ConnectionFailed(String),
+
+    #[error("pool configuration failed: {0}")]
+    PoolConfigurationFailed(String),
+}
+
+impl From<deadpool::managed::BuildError> for Error {
+    fn from(err: deadpool::managed::BuildError) -> Self {
+        Error::PoolConfigurationFailed(err.to_string())
+    }
 }
 
 impl From<reqwest::Error> for Error {
