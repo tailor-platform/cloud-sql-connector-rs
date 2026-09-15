@@ -6,7 +6,7 @@
 //! ## Usage
 //!
 //! ```rust,no_run
-//! use cloudsqlconn::{CloudSqlConnector, CloudSqlConfig, IpType};
+//! use cloudsqlconn::{CloudSqlConnector, CloudSqlConfig, IpType, Timeouts};
 //! use std::sync::Arc;
 //! use std::time::Duration;
 //!
@@ -44,6 +44,21 @@
 //!         Some(Duration::from_secs(300)),  // will be capped at 55 min for IAM auth
 //!     )?;
 //!
+//!     // Bound how long `pool.get()` waits for a free connection and how long
+//!     // establishing a new connection may take
+//!     let pool_with_timeouts = connector.clone().create_pool_with_timeouts(
+//!         "mydb".to_string(),
+//!         "user".to_string(),
+//!         Some("password".to_string()),
+//!         10,
+//!         Some(Duration::from_secs(300)),
+//!         Timeouts {
+//!             wait: Some(Duration::from_secs(5)),
+//!             create: Some(Duration::from_secs(10)),
+//!             ..Timeouts::default()
+//!         },
+//!     )?;
+//!
 //!     Ok(())
 //! }
 //! ```
@@ -59,6 +74,8 @@ mod retry;
 mod tls;
 
 pub use config::{CloudSqlConfig, IpType};
+pub use deadpool::Runtime;
+pub use deadpool::managed::{PoolError, TimeoutType, Timeouts};
 pub use error::Error;
 pub use pool::{CloudSqlPool, CloudSqlPoolManager, PooledConnection};
 pub use tls::CloudSqlTlsConnector;
@@ -120,7 +137,10 @@ impl CloudSqlConnector {
         }
     }
 
-    /// Creates a connection pool.
+    /// Creates a connection pool with no acquire, create or recycle timeouts.
+    ///
+    /// See [`create_pool_with_timeouts`](Self::create_pool_with_timeouts) to bound
+    /// those operations.
     ///
     /// # Arguments
     /// * `dbname` - Database name
@@ -137,12 +157,34 @@ impl CloudSqlConnector {
         max_size: usize,
         max_lifetime: Option<Duration>,
     ) -> Result<CloudSqlPool, Error> {
-        if max_size == 0 {
-            return Err(Error::ConnectionFailed(
-                "max_size must be greater than 0".to_string(),
-            ));
-        }
+        self.create_pool_with_timeouts(
+            dbname,
+            user,
+            password,
+            max_size,
+            max_lifetime,
+            Timeouts::default(),
+        )
+    }
 
+    /// Creates a connection pool with deadpool [`Timeouts`].
+    ///
+    /// `timeouts.wait` bounds how long `pool.get()` waits for a free slot,
+    /// `timeouts.create` bounds establishing a new connection and
+    /// `timeouts.recycle` bounds the health check on a reused connection.
+    /// A `None` timeout means unbounded. When a timeout elapses, `pool.get()`
+    /// returns [`PoolError::Timeout`] with the matching [`TimeoutType`].
+    ///
+    /// The remaining arguments match [`create_pool`](Self::create_pool).
+    pub fn create_pool_with_timeouts(
+        self: Arc<Self>,
+        dbname: String,
+        user: String,
+        password: Option<String>,
+        max_size: usize,
+        max_lifetime: Option<Duration>,
+        timeouts: Timeouts,
+    ) -> Result<CloudSqlPool, Error> {
         let use_iam_auth = self.use_iam_auth;
         // When using IAM auth, cap the max lifetime to ensure connections are refreshed
         // before the access token expires (tokens are valid for 60 minutes)
@@ -156,10 +198,7 @@ impl CloudSqlConnector {
         };
         let manager =
             CloudSqlPoolManager::new(self, dbname, user, password, use_iam_auth, max_lifetime);
-        Ok(CloudSqlPool::builder(manager)
-            .max_size(max_size)
-            .build()
-            .expect("pool build should not fail with valid max_size"))
+        pool::build_pool(manager, max_size, timeouts)
     }
 
     pub async fn shutdown(&mut self) {
